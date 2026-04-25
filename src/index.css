@@ -1,0 +1,229 @@
+@import "tailwindcss";
+
+@theme {
+  --color-orange: #D4622A;
+  --color-orange-light: #E8834F;
+  --color-orange-dark: #B04A1A;
+  --color-navy: #2C3E5C;
+  --color-navy-light: #3D5278;
+  --color-navy-dark: #1A2840;
+  --color-cream: #F5F0E8;
+  --color-cream-dark: #EDE5D4;
+  --color-text-base: #1A2030;
+  --color-text-mid: #4A5568;
+  --color-text-light: #8A95A3;
+  --color-border-base: #D8CEBC;
+  --color-border-light: #EDE5D4;
+  --color-success: #2D7A4F;
+  --color-warning: #C47A00;
+  --color-danger: #C0392B;
+
+  --font-display: "Oswald", sans-serif;
+  --font-sans: "DM Sans", "Segoe UI", system-ui, sans-serif;
+
+  --shadow-card: 0 1px 3px rgba(44, 62, 92, 0.04), 0 4px 12px rgba(44, 62, 92, 0.06);
+  --shadow-card-hover: 0 4px 8px rgba(44, 62, 92, 0.06), 0 12px 24px rgba(44, 62, 92, 0.1);
+  --shadow-popover: 0 8px 32px rgba(26, 32, 48, 0.16);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  /* Prevent rubber-band on iOS but allow scroll */
+  overscroll-behavior-y: none;
+}
+
+html,
+body {
+  background: #F5F0E8;
+  color: #1A2030;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  /* iOS safe area variables fallback */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+body {
+  min-height: 100dvh;
+}
+
+input,
+select,
+textarea,
+button {
+  font-family: inherit;
+}
+
+input,
+select,
+textarea {
+  /* 16px+ prevents iOS zoom on focus */
+  font-size: 16px !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+button {
+  touch-action: manipulation;
+}
+
+/* Larger tap target everywhere */
+button,
+[role="button"],
+a {
+  min-height: 32px;
+}
+
+/* Animations */
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    transform: scale(0.96);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-slide-up { animation: slide-up 0.32s cubic-bezier(0.32, 0.72, 0, 1); }
+.animate-fade-in { animation: fade-in 0.2s ease-out; }
+.animate-scale-in { animation: scale-in 0.18s cubic-bezier(0.32, 0.72, 0, 1); }
+
+/* Skeleton */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    #EDE5D4 0%,
+    #F5F0E8 50%,
+    #EDE5D4 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+/* Custom scrollbar (desktop) */
+@media (pointer: fine) {
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: #D8CEBC;
+    border-radius: 8px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: #B5A78F; }
+}
+
+/* Hide scrollbar utility */
+.scrollbar-none::-webkit-scrollbar { display: none; }
+.scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Safe area utilities */
+.safe-pt { padding-top: var(--safe-top); }
+.safe-pb { padding-bottom: var(--safe-bottom); }
+.safe-pl { padding-left: var(--safe-left); }
+.safe-pr { padding-right: var(--safe-right); }
+
+/* Glass effect for modal backdrops */
+.glass {
+  background: rgba(26, 32, 48, 0.55);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+}
+
+.glass-light {
+  background: rgba(253, 251, 247, 0.78);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+}
+
+/* Tactile press feedback */
+.press {
+  transition: transform 0.12s ease-out, box-shadow 0.12s ease-out;
+}
+.press:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* Print: only the remito should be visible */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #remito-print,
+  #remito-print * {
+    visibility: visible;
+  }
+  #remito-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    background: white;
+    color: black;
+    padding: 24px;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* Focus visible for accessibility */
+:focus-visible {
+  outline: 2px solid #D4622A;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline-offset: 3px;
+}
