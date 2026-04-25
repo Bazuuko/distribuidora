@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   Check,
@@ -90,6 +90,18 @@ export function Pedidos() {
   const [filter, setFilter] = useState<Filter>("activos");
   const [form, setForm] = useState<FormState>(blank);
   const [printing, setPrinting] = useState<Pedido | null>(null);
+
+  // Disparar print solo después de que el remito se haya renderizado
+  useEffect(() => {
+    if (!printing) return;
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.print();
+        setPrinting(null);
+      });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [printing]);
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -204,12 +216,37 @@ export function Pedidos() {
     if (!next) return;
 
     if (next === "entregado") {
-      // Validar stock antes de descontar
+      // Validar stock acumulado por producto (líneas duplicadas en mismo pedido)
       const items = state.pedidoItems.filter((it) => it.pedidoId === pedido.id);
+      if (items.length === 0) {
+        toast.error("Pedido sin ítems");
+        return;
+      }
+      // Verificar que los productos sigan existiendo
+      const orphans = items.filter(
+        (it) => !state.products.some((p) => p.id === it.productId),
+      );
+      if (orphans.length > 0) {
+        toast.error(
+          `No se puede entregar: faltan productos del catálogo (${orphans
+            .map((o) => o.productName)
+            .join(", ")})`,
+        );
+        return;
+      }
+      const totalByProduct = new Map<string, number>();
       for (const it of items) {
-        const st = getStock(it.productId, state.lots);
-        if (it.qty > st) {
-          toast.error(`Stock insuficiente: ${it.productName}`);
+        totalByProduct.set(
+          it.productId,
+          (totalByProduct.get(it.productId) ?? 0) + it.qty,
+        );
+      }
+      for (const [pid, qty] of totalByProduct) {
+        const st = getStock(pid, state.lots);
+        if (qty > st + 1e-6) {
+          const name =
+            state.products.find((p) => p.id === pid)?.name ?? "producto";
+          toast.error(`Stock insuficiente: ${name} (pediste ${qty}, hay ${st})`);
           return;
         }
       }
@@ -251,33 +288,35 @@ export function Pedidos() {
         payload: {
           pedidoId: pedido.id,
           estado: next,
-          deliver: { sale, items: saleItems, lots },
+          deliver: {
+            sale,
+            items: saleItems,
+            lots,
+            clienteBalanceDelta:
+              pedido.payMethod === "cuenta_corriente" && pedido.clienteId
+                ? pedido.total
+                : 0,
+          },
         },
       });
-      // Si paga en cuenta corriente, sumar deuda
-      if (pedido.payMethod === "cuenta_corriente") {
-        const cliente = state.clientes.find((c) => c.id === pedido.clienteId);
-        if (cliente) {
-          dispatch({
-            type: "UPD_CLIENTE",
-            payload: {
-              ...cliente,
-              balance: cliente.balance + pedido.total,
-            },
-          });
-        }
-      }
       toast.success(`Pedido #${pedido.numero} entregado`);
     } else {
       dispatch({
         type: "UPD_PEDIDO_ESTADO",
         payload: { pedidoId: pedido.id, estado: next },
       });
-      toast.success(`Pedido #${pedido.numero}: ${next}`);
+      toast.success(`Pedido #${pedido.numero}: ${next.replace("_", " ")}`);
     }
   };
 
   const cancel = (pedido: Pedido) => {
+    if (pedido.status === "entregado") {
+      toast.error(
+        "No se puede cancelar un pedido entregado. Si fue un error, eliminalo manualmente.",
+      );
+      return;
+    }
+    if (pedido.status === "cancelado") return;
     if (!confirm(`¿Cancelar pedido #${pedido.numero}?`)) return;
     dispatch({
       type: "UPD_PEDIDO_ESTADO",
@@ -288,21 +327,24 @@ export function Pedidos() {
 
   const togglePaid = (pedido: Pedido) =>
     dispatch({
-      type: "MARK_PEDIDO_PAID",
-      payload: { pedidoId: pedido.id, paid: !pedido.paid },
+      type: "TOGGLE_PEDIDO_PAID",
+      payload: { pedidoId: pedido.id },
     });
 
   const remove = (pedido: Pedido) => {
-    if (!confirm(`¿Eliminar pedido #${pedido.numero} del registro?`)) return;
+    if (pedido.status === "entregado") {
+      const ok = confirm(
+        `Pedido #${pedido.numero} ya fue ENTREGADO.\n\nEliminarlo solo lo saca del listado — NO devuelve stock ni anula la venta asociada ni la deuda. Usalo solo si fue un error de registro.\n\n¿Confirmar?`,
+      );
+      if (!ok) return;
+    } else {
+      if (!confirm(`¿Eliminar pedido #${pedido.numero} del registro?`)) return;
+    }
     dispatch({ type: "DEL_PEDIDO", payload: pedido.id });
   };
 
   const print = (pedido: Pedido) => {
     setPrinting(pedido);
-    setTimeout(() => {
-      window.print();
-      setPrinting(null);
-    }, 100);
   };
 
   const filtered = useMemo(() => {

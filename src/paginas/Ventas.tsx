@@ -106,12 +106,23 @@ export function Ventas() {
       toast.error("Agregá al menos un producto");
       return;
     }
-    // Validación stock
+    if (pay === "cuenta_corriente" && !clienteId) {
+      toast.error("Para cuenta corriente seleccioná un cliente");
+      return;
+    }
+    // Validación stock acumulada por producto (varias líneas del mismo producto)
+    const totalQtyByProduct = new Map<string, number>();
     for (const it of preview) {
-      const st = getStock(it.pid, state.lots);
-      if (it.qty > st) {
-        const name = state.products.find((p) => p.id === it.pid)?.name ?? "";
-        toast.error(`Stock insuficiente: ${name}`);
+      totalQtyByProduct.set(
+        it.pid,
+        (totalQtyByProduct.get(it.pid) ?? 0) + it.qty,
+      );
+    }
+    for (const [pid, qty] of totalQtyByProduct) {
+      const st = getStock(pid, state.lots);
+      if (qty > st + 1e-6) {
+        const name = state.products.find((p) => p.id === pid)?.name ?? "";
+        toast.error(`Stock insuficiente: ${name} (pediste ${qty}, hay ${st})`);
         return;
       }
     }
@@ -142,18 +153,16 @@ export function Ventas() {
       clienteId,
       discount: discountAmount,
     };
-    dispatch({ type: "ADD_SALE", payload: { sale, items: ventaItems, lots } });
-
-    // Si paga en cuenta corriente, sumar deuda al cliente
-    if (pay === "cuenta_corriente" && clienteId) {
-      const cliente = state.clientes.find((c) => c.id === clienteId);
-      if (cliente) {
-        dispatch({
-          type: "UPD_CLIENTE",
-          payload: { ...cliente, balance: cliente.balance + total },
-        });
-      }
-    }
+    dispatch({
+      type: "ADD_SALE",
+      payload: {
+        sale,
+        items: ventaItems,
+        lots,
+        clienteBalanceDelta:
+          pay === "cuenta_corriente" && clienteId ? total : 0,
+      },
+    });
 
     toast.success(`Venta de ${fmt(total)} registrada`);
     reset();

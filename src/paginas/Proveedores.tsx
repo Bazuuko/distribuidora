@@ -51,7 +51,19 @@ export function Proveedores() {
 
   const remove = () => {
     if (!editId) return;
-    if (!confirm("¿Eliminar proveedor?")) return;
+    const compras = state.purchases.filter((c) => c.supplierId === editId);
+    const productos = state.products.filter((p) => p.supplierId === editId);
+    if (compras.length || productos.length) {
+      const ok = confirm(
+        `Este proveedor tiene:\n` +
+          `• ${compras.length} compras\n` +
+          `• ${productos.length} productos asignados\n\n` +
+          `Si lo borrás, ese historial queda sin proveedor. Te conviene desactivarlo.\n\n¿Eliminar igual?`,
+      );
+      if (!ok) return;
+    } else if (!confirm("¿Eliminar proveedor?")) {
+      return;
+    }
     dispatch({ type: "DEL_SUPPLIER", payload: editId });
     toast.success("Eliminado");
     setModal(false);

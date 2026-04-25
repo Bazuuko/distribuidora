@@ -107,7 +107,26 @@ export function Clientes() {
 
   const remove = () => {
     if (!editId) return;
-    if (!confirm("¿Eliminar cliente?")) return;
+    const cliente = state.clientes.find((c) => c.id === editId);
+    if (cliente && cliente.balance > 0) {
+      toast.error(
+        `Este cliente tiene una deuda de ${fmt(cliente.balance)}. Cobrá o ajustá antes de eliminar.`,
+      );
+      return;
+    }
+    const ventas = state.sales.filter((v) => v.clienteId === editId);
+    const pedidos = state.pedidos.filter((p) => p.clienteId === editId);
+    if (ventas.length || pedidos.length) {
+      const ok = confirm(
+        `Este cliente tiene historial:\n` +
+          `• ${ventas.length} ventas\n` +
+          `• ${pedidos.length} pedidos\n\n` +
+          `Si lo borrás, ese historial queda sin cliente. Te conviene desactivarlo.\n\n¿Eliminar igual?`,
+      );
+      if (!ok) return;
+    } else if (!confirm("¿Eliminar cliente?")) {
+      return;
+    }
     dispatch({ type: "DEL_CLIENTE", payload: editId });
     toast.success("Eliminado");
     setModal(false);

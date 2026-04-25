@@ -33,13 +33,13 @@ export const PRIMARY_NAV: NavItem[] = [
   { id: "productos", label: "Productos", icon: Package },
 ];
 
-export const MORE_NAV: NavItem[] = [
-  { id: "clientes", label: "Clientes", icon: Home },
-  { id: "compras", label: "Compras", icon: Package },
-  { id: "proveedores", label: "Proveedores", icon: Home },
-  { id: "costos", label: "Costos", icon: Home },
-  { id: "importar", label: "Importar", icon: Home },
-  { id: "ajustes", label: "Ajustes", icon: Home },
+export const MORE_TABS: Tab[] = [
+  "clientes",
+  "compras",
+  "proveedores",
+  "costos",
+  "importar",
+  "ajustes",
 ];
 
 interface BottomNavProps {
@@ -59,7 +59,7 @@ export function BottomNav({
     ...PRIMARY_NAV,
     { id: "more" as const, label: "Más", icon: Menu },
   ];
-  const isMoreActive = MORE_NAV.some((m) => m.id === active);
+  const isMoreActive = MORE_TABS.includes(active);
   return (
     <nav
       className="no-print fixed bottom-0 left-1/2 z-[100] flex w-full max-w-[480px] -translate-x-1/2 border-t border-[#D8CEBC] bg-[#FDFBF7]/95 backdrop-blur-md"

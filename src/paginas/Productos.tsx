@@ -100,7 +100,22 @@ export function Productos() {
 
   const remove = () => {
     if (!editId) return;
-    if (!confirm("¿Eliminar producto?")) return;
+    const lots = state.lots.filter((l) => l.productId === editId);
+    const sales = state.saleItems.filter((it) => it.productId === editId);
+    const pedidos = state.pedidoItems.filter((it) => it.productId === editId);
+    if (lots.length || sales.length || pedidos.length) {
+      const ok = confirm(
+        `Este producto tiene historial:\n` +
+          `• ${lots.length} lotes\n` +
+          `• ${sales.length} ítems vendidos\n` +
+          `• ${pedidos.length} ítems en pedidos\n\n` +
+          `Si lo borrás, ese historial queda apuntando a un producto inexistente. ` +
+          `Te conviene desactivarlo en lugar de eliminarlo.\n\n¿Eliminar igual?`,
+      );
+      if (!ok) return;
+    } else if (!confirm("¿Eliminar producto?")) {
+      return;
+    }
     dispatch({ type: "DEL_PRODUCT", payload: editId });
     toast.success("Eliminado");
     setModal(false);

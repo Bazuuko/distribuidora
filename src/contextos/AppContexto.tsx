@@ -4,8 +4,10 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useRef,
   type ReactNode,
 } from "react";
+import toast from "react-hot-toast";
 import type {
   AppState,
   Cliente,
@@ -65,7 +67,12 @@ export type Action =
   | { type: "ADD_PURCHASE"; payload: { purchase: Compra; lot: Lote } }
   | {
       type: "ADD_SALE";
-      payload: { sale: Venta; items: VentaItem[]; lots: Lote[] };
+      payload: {
+        sale: Venta;
+        items: VentaItem[];
+        lots: Lote[];
+        clienteBalanceDelta?: number;
+      };
     }
   | {
       type: "ADD_PEDIDO";
@@ -76,10 +83,18 @@ export type Action =
       payload: {
         pedidoId: string;
         estado: EstadoPedido;
-        deliver?: { sale: Venta; items: VentaItem[]; lots: Lote[] };
+        deliver?: {
+          sale: Venta;
+          items: VentaItem[];
+          lots: Lote[];
+          clienteBalanceDelta?: number;
+        };
       };
     }
-  | { type: "MARK_PEDIDO_PAID"; payload: { pedidoId: string; paid: boolean } }
+  | {
+      type: "TOGGLE_PEDIDO_PAID";
+      payload: { pedidoId: string };
+    }
   | { type: "DEL_PEDIDO"; payload: string }
   | { type: "ADD_FIXED"; payload: CostoFijo }
   | { type: "DEL_FIXED"; payload: string }
@@ -98,7 +113,7 @@ function reducer(state: AppState, action: Action): AppState {
         clientes: action.payload.clientes,
       };
     case "RESET":
-      return initialState;
+      return { ...initialState };
     case "RENAME_BUSINESS":
       return { ...state, businessName: action.payload };
     case "ADD_PRODUCT":
@@ -149,13 +164,24 @@ function reducer(state: AppState, action: Action): AppState {
         purchases: [...state.purchases, action.payload.purchase],
         lots: [...state.lots, action.payload.lot],
       };
-    case "ADD_SALE":
+    case "ADD_SALE": {
+      const { sale, items, lots, clienteBalanceDelta } = action.payload;
+      const clientes =
+        clienteBalanceDelta && sale.clienteId
+          ? state.clientes.map((c) =>
+              c.id === sale.clienteId
+                ? { ...c, balance: c.balance + clienteBalanceDelta }
+                : c,
+            )
+          : state.clientes;
       return {
         ...state,
-        sales: [...state.sales, action.payload.sale],
-        saleItems: [...state.saleItems, ...action.payload.items],
-        lots: action.payload.lots,
+        sales: [...state.sales, sale],
+        saleItems: [...state.saleItems, ...items],
+        lots,
+        clientes,
       };
+    }
     case "ADD_PEDIDO":
       return {
         ...state,
@@ -171,25 +197,48 @@ function reducer(state: AppState, action: Action): AppState {
           : p,
       );
       if (deliver) {
+        const { sale, items, lots, clienteBalanceDelta } = deliver;
+        const clientes =
+          clienteBalanceDelta && sale.clienteId
+            ? state.clientes.map((c) =>
+                c.id === sale.clienteId
+                  ? { ...c, balance: c.balance + clienteBalanceDelta }
+                  : c,
+              )
+            : state.clientes;
         return {
           ...state,
           pedidos,
-          sales: [...state.sales, deliver.sale],
-          saleItems: [...state.saleItems, ...deliver.items],
-          lots: deliver.lots,
+          sales: [...state.sales, sale],
+          saleItems: [...state.saleItems, ...items],
+          lots,
+          clientes,
         };
       }
       return { ...state, pedidos };
     }
-    case "MARK_PEDIDO_PAID":
-      return {
-        ...state,
-        pedidos: state.pedidos.map((p) =>
-          p.id === action.payload.pedidoId
-            ? { ...p, paid: action.payload.paid }
-            : p,
-        ),
-      };
+    case "TOGGLE_PEDIDO_PAID": {
+      const pedido = state.pedidos.find((p) => p.id === action.payload.pedidoId);
+      if (!pedido) return state;
+      const nextPaid = !pedido.paid;
+      const pedidos = state.pedidos.map((p) =>
+        p.id === pedido.id ? { ...p, paid: nextPaid } : p,
+      );
+      // Si era cuenta corriente y se entregó, ajustar deuda del cliente
+      // Marcar pagado → restar; volver a impago → sumar de nuevo
+      const shouldAdjust =
+        pedido.payMethod === "cuenta_corriente" &&
+        pedido.status === "entregado" &&
+        pedido.clienteId;
+      if (!shouldAdjust) return { ...state, pedidos };
+      const delta = nextPaid ? -pedido.total : pedido.total;
+      const clientes = state.clientes.map((c) =>
+        c.id === pedido.clienteId
+          ? { ...c, balance: Math.max(0, c.balance + delta) }
+          : c,
+      );
+      return { ...state, pedidos, clientes };
+    }
     case "DEL_PEDIDO":
       return {
         ...state,
@@ -228,7 +277,25 @@ function loadInitial(): AppState {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return initialState;
     const parsed = JSON.parse(raw) as Partial<AppState>;
-    return { ...initialState, ...parsed };
+    // Merge garantiza compatibilidad si hay estado v1 con campos faltantes
+    return {
+      ...initialState,
+      ...parsed,
+      // Re-asegurar arrays defensivamente (si el JSON viene corrupto)
+      products: Array.isArray(parsed.products) ? parsed.products : [],
+      suppliers: Array.isArray(parsed.suppliers) ? parsed.suppliers : [],
+      clientes: Array.isArray(parsed.clientes) ? parsed.clientes : [],
+      purchases: Array.isArray(parsed.purchases) ? parsed.purchases : [],
+      lots: Array.isArray(parsed.lots) ? parsed.lots : [],
+      sales: Array.isArray(parsed.sales) ? parsed.sales : [],
+      saleItems: Array.isArray(parsed.saleItems) ? parsed.saleItems : [],
+      pedidos: Array.isArray(parsed.pedidos) ? parsed.pedidos : [],
+      pedidoItems: Array.isArray(parsed.pedidoItems) ? parsed.pedidoItems : [],
+      fixedCosts: Array.isArray(parsed.fixedCosts) ? parsed.fixedCosts : [],
+      variableCosts: Array.isArray(parsed.variableCosts)
+        ? parsed.variableCosts
+        : [],
+    };
   } catch {
     return initialState;
   }
@@ -243,12 +310,22 @@ const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, undefined, loadInitial);
+  const persistFailedRef = useRef(false);
 
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch {
-      /* storage full or disabled */
+      persistFailedRef.current = false;
+    } catch (err) {
+      // QuotaExceededError u otro: avisar UNA sola vez
+      if (!persistFailedRef.current) {
+        persistFailedRef.current = true;
+        const msg =
+          err instanceof Error && err.name === "QuotaExceededError"
+            ? "Espacio lleno: descargá un backup desde Ajustes"
+            : "No pude guardar los cambios — revisá Ajustes";
+        toast.error(msg, { duration: 6000 });
+      }
     }
   }, [state]);
 
